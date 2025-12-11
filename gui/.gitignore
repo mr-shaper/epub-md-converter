@@ -1,0 +1,29 @@
+# Node modules
+node_modules/
+gui/node_modules/
+package-lock.json
+gui/package-lock.json
+
+# Temporary files
+gui/uploads/*
+!gui/uploads/.gitkeep
+gui/outputs/*
+!gui/outputs/.gitkeep
+
+# System files
+.DS_Store
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+lib/
+dist/
+
+# EPUB test files
+*.epub
+
+# Downloaded files
+*.zip

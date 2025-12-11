@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>epub2MD - EPUB 转 Markdown 工具</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📖 epub2MD</h1>
+            <p class="subtitle">轻松将 EPUB 电子书转换为 Markdown 格式</p>
+        </header>
+
+        <main>
+            <!-- 文件上传区域 -->
+            <section class="upload-section" id="uploadSection">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <h2>拖拽 EPUB 文件到这里</h2>
+                    <p>或点击选择文件</p>
+                    <input type="file" id="fileInput" accept=".epub" hidden>
+                    <button class="btn-primary" onclick="document.getElementById('fileInput').click()">
+                        选择文件
+                    </button>
+                </div>
+                
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <div class="file-name">
+                        <span class="icon">📄</span>
+                        <span id="fileName"></span>
+                    </div>
+                    <div class="file-size" id="fileSize"></div>
+                    <button class="btn-secondary" onclick="resetUpload()">重新选择</button>
+                </div>
+            </section>
+
+            <!-- 转换选项 -->
+            <section class="options-section" id="optionsSection" style="display: none;">
+                <h2>转换选项</h2>
+                <div class="options-grid">
+                    <div class="option-card">
+                        <div class="option-header">
+                            <label class="switch">
+                                <input type="checkbox" id="mergeOption" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <div>
+                                <h3>合并章节</h3>
+                                <p>将所有章节合并为一个 Markdown 文件</p>
+                            </div>
+                        </div>
+                        <div class="merge-filename" id="mergeFilenameDiv">
+                            <input type="text" id="mergeFilename" placeholder="merged.md" value="merged.md">
+                        </div>
+                    </div>
+
+                    <div class="option-card">
+                        <label class="switch">
+                            <input type="checkbox" id="autocorrectOption">
+                            <span class="slider"></span>
+                        </label>
+                        <div>
+                            <h3>自动校正</h3>
+                            <p>优化中英文之间的空格和标点符号</p>
+                        </div>
+                    </div>
+
+                    <div class="option-card">
+                        <label class="switch">
+                            <input type="checkbox" id="localizeOption">
+                            <span class="slider"></span>
+                        </label>
+                        <div>
+                            <h3>本地化图片</h3>
+                            <p>下载远程图片到本地（需 Node.js 18+）</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-convert" id="convertBtn" onclick="convertEpub()">
+                    <span class="icon">🚀</span>
+                    开始转换
+                </button>
+            </section>
+
+            <!-- 转换进度 -->
+            <section class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-container">
+                    <div class="spinner"></div>
+                    <h2>正在转换...</h2>
+                    <p id="progressText">请稍候，正在处理您的文件</p>
+                </div>
+            </section>
+
+            <!-- 转换结果 -->
+            <section class="result-section" id="resultSection" style="display: none;">
+                <div class="result-container">
+                    <div class="success-icon">✅</div>
+                    <h2>转换完成！</h2>
+                    <p id="resultMessage"></p>
+                    
+                    <div class="download-buttons">
+                        <button class="btn-download" id="downloadBtn">
+                            <span class="icon">📥</span>
+                            下载 Markdown 文件
+                        </button>
+                        <button class="btn-secondary" onclick="resetAll()">
+                            转换另一个文件
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 错误提示 -->
+            <div class="error-toast" id="errorToast" style="display: none;">
+                <span class="icon">❌</span>
+                <span id="errorMessage"></span>
+            </div>
+        </main>
+
+        <footer>
+            <p>基于 <a href="https://github.com/uxiew/epub2MD" target="_blank">epub2MD</a> 项目</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
