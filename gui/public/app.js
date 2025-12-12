@@ -16,6 +16,7 @@ const errorToast = document.getElementById('errorToast');
 const errorMessage = document.getElementById('errorMessage');
 const mergeOption = document.getElementById('mergeOption');
 const mergeFilenameDiv = document.getElementById('mergeFilenameDiv');
+const mergeFilenameInput = document.getElementById('mergeFilename'); // Added for easier access
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -59,19 +60,28 @@ function handleFileSelect(e) {
 }
 
 async function handleFile(file) {
-    // 验证文件类型
-    if (!file.name.endsWith('.epub')) {
-        showError('请选择 .epub 文件');
+    if (!file.name.toLowerCase().endsWith('.epub')) {
+        showError('请选择 EPUB 文件');
         return;
     }
 
+    uploadedFile = file;
+
     // 显示文件信息
-    fileName.textContent = file.name;
-    fileSize.textContent = formatFileSize(file.size);
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+    document.getElementById('fileInfo').style.display = 'flex';
+    document.getElementById('uploadArea').style.display = 'none';
+    document.getElementById('optionsSection').style.display = 'block';
 
-    uploadArea.style.display = 'none';
-    fileInfo.style.display = 'flex';
-
+    // 自动填充合并文件名：从 EPUB 文件名提取（去掉 .epub，加 .md）
+    const epubName = file.name;
+    if (epubName.toLowerCase().endsWith('.epub')) {
+        const baseName = epubName.substring(0, epubName.length - 5); // 去掉 .epub
+        const suggestedName = baseName + '.md';
+        document.getElementById('mergeFilename').value = suggestedName;
+        console.log('自动填充合并文件名:', suggestedName);
+    }
     // 上传文件
     await uploadFile(file);
 }
@@ -158,15 +168,18 @@ function showResult(data) {
     resultSection.scrollIntoView({ behavior: 'smooth' });
 
     const resultMessage = document.getElementById('resultMessage');
-    resultMessage.textContent = `已成功转换为 Markdown 格式${data.merge ? '（已合并）' : ''}`;
+    resultMessage.textContent = `已成功转换为 Markdown 格式${data.merge ? '（已合并）' : ''} `;
 
     const downloadBtn = document.getElementById('downloadBtn');
     downloadBtn.onclick = () => downloadResult(data);
 }
 
 function downloadResult(data) {
-    // 下载合并的文件或第一个 Markdown 文件
-    const downloadUrl = `/download-all/${data.outputDir}`;
+    // 构建下载URL，包含自定义文件名
+    const customFilename = document.getElementById('mergeFilename').value || 'merged.md';
+    const downloadUrl = `/download-all/${data.outputDir}?customFilename=${encodeURIComponent(customFilename)}`;
+
+    console.log('下载URL:', downloadUrl);
     window.location.href = downloadUrl;
 }
 

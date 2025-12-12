@@ -133,6 +133,7 @@ app.post('/convert', async (req, res) => {
             success: true,
             message: '转换完成',
             outputDir: epubBaseName,
+            customFilename: options?.mergeFileName || null, // 传递用户自定义文件名
             files: outputFiles,
             merge: options?.merge || false
         });
@@ -172,6 +173,8 @@ app.get('/download/:dirname/:filename(*)', async (req, res) => {
 app.get('/download-all/:dirname', async (req, res) => {
     try {
         const { dirname } = req.params;
+        const { customFilename } = req.query; // 获取自定义文件名
+
         // 文件实际在 uploads 文件夹中
         const dirPath = path.join(__dirname, 'uploads', dirname);
 
@@ -186,11 +189,25 @@ app.get('/download-all/:dirname', async (req, res) => {
         await fs.access(dirPath);
 
         console.log('创建 ZIP 压缩包:', dirPath);
+        console.log('自定义文件名:', customFilename);
 
-        // 设置响应头
-        const zipName = `${dirname}.zip`;
-        res.attachment(zipName);
+        // 确定 ZIP 文件名和文件夹名
+        let zipName, folderName;
+        if (customFilename) {
+            // 使用用户自定义的文件名（去掉 .md 扩展名和首尾空格，添加 .zip）
+            const baseName = customFilename.trim().replace(/\.md$/i, '');
+            zipName = `${baseName}.zip`;
+            folderName = baseName;
+        } else {
+            // 使用默认名称
+            zipName = `${dirname}.zip`;
+            folderName = dirname;
+        }
+
+        // 设置响应头，使用 UTF-8 编码支持中文
+        // 注意：不要在 res.attachment() 中使用 encodeURIComponent，会导致文件名前多下划线
         res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`);
 
         // 创建 archiver 实例
         const archive = archiver('zip', {
@@ -200,7 +217,9 @@ app.get('/download-all/:dirname', async (req, res) => {
         // 错误处理
         archive.on('error', (err) => {
             console.error('ZIP 创建错误:', err);
-            res.status(500).json({ error: 'ZIP 创建失败' });
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'ZIP 创建失败' });
+            }
         });
 
         // 监听完成事件以进行清理
@@ -231,9 +250,48 @@ app.get('/download-all/:dirname', async (req, res) => {
         // 将 archive 输出管道到响应
         archive.pipe(res);
 
-        // 添加整个目录到 ZIP
-        // 这会创建一个包含文件夹结构的 ZIP: dirname/xxx.md, dirname/images/...
-        archive.directory(dirPath, dirname);
+        // 智能处理封面：如果有 cover-image.* 但没有 cover.jpg，在 ZIP 中添加为 cover.jpg
+        const imagesDir = path.join(dirPath, 'images');
+        try {
+            const imageFiles = await fs.readdir(imagesDir);
+            const coverImageFile = imageFiles.find(f => f.startsWith('cover-image.'));
+            const hasCoverJpg = imageFiles.includes('cover.jpg');
+
+            if (coverImageFile && !hasCoverJpg) {
+                console.log(`发现封面文件 ${coverImageFile}，将同时添加为 cover.jpg`);
+
+                // 先添加所有其他文件
+                for (const file of imageFiles) {
+                    const filePath = path.join(imagesDir, file);
+                    archive.file(filePath, { name: `${folderName}/images/${file}` });
+                }
+
+                // 额外添加封面作为 cover.jpg
+                const coverPath = path.join(imagesDir, coverImageFile);
+                archive.file(coverPath, { name: `${folderName}/images/cover.jpg` });
+
+                console.log('已在 ZIP 中创建 cover.jpg');
+            } else {
+                // 正常添加 images 目录
+                archive.directory(imagesDir, `${folderName}/images`);
+            }
+        } catch (err) {
+            console.error('处理 images 目录时出错:', err);
+            // 如果出错，使用默认方式
+            archive.directory(imagesDir, `${folderName}/images`);
+        }
+
+        // 添加 MD 文件和其他文件（不包括 images 目录）
+        const files = await fs.readdir(dirPath);
+        for (const file of files) {
+            if (file !== 'images') {
+                const filePath = path.join(dirPath, file);
+                const stats = await fs.stat(filePath);
+                if (stats.isFile()) {
+                    archive.file(filePath, { name: `${folderName}/${file}` });
+                }
+            }
+        }
 
         // 完成归档
         await archive.finalize();

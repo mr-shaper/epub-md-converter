@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>epub2MD - EPUB 转 Markdown 工具</title>
+    <title>EPUB-MD Converter - EPUB 转 Markdown 工具</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="container">
         <header>
-            <h1>📖 epub2MD</h1>
+            <h1>EPUB-MD Converter</h1>
             <p class="subtitle">轻松将 EPUB 电子书转换为 Markdown 格式</p>
         </header>
 
@@ -25,7 +27,7 @@
                         选择文件
                     </button>
                 </div>
-                
+
                 <div class="file-info" id="fileInfo" style="display: none;">
                     <div class="file-name">
                         <span class="icon">📄</span>
@@ -100,7 +102,7 @@
                     <div class="success-icon">✅</div>
                     <h2>转换完成！</h2>
                     <p id="resultMessage"></p>
-                    
+
                     <div class="download-buttons">
                         <button class="btn-download" id="downloadBtn">
                             <span class="icon">📥</span>
@@ -127,4 +129,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

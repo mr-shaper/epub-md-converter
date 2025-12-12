@@ -18,7 +18,8 @@ export async function convertEpubViaCLI(epubPath, options = {}) {
         merge = false,
         autocorrect = false,
         localize = false,
-        mergeFileName = 'merged.md'
+        mergeFileName = 'merged.md',
+        extractCoverImage = true  // 默认提取封面
     } = options;
 
     // 构建命令行参数
@@ -72,9 +73,29 @@ export async function convertEpubViaCLI(epubPath, options = {}) {
         // 解析输出，查找输出目录
         const outputDir = parseOutputDir(epubPath, stdout, merge);
 
+        // 查找并引用封面图片（如果启用）
+        let coverExtracted = false;
+        if (extractCoverImage) {
+            try {
+                const { processCover } = await import('./cover-extractor.js');
+                const baseDir = path.dirname(epubPath);
+                const fullOutputDir = path.join(baseDir, outputDir);
+
+                console.log('查找封面文件:', fullOutputDir);
+                coverExtracted = await processCover(
+                    fullOutputDir,  // 只需要输出目录
+                    merge ? mergeFileName : null
+                );
+            } catch (coverError) {
+                console.error('封面处理失败（非致命）:', coverError.message);
+                // 封面处理失败不影响主流程
+            }
+        }
+
         return {
             success: true,
             outputDir: outputDir,
+            coverExtracted: coverExtracted,
             stdout: stdout,
             stderr: stderr
         };
@@ -100,22 +121,26 @@ export async function convertEpubViaCLI(epubPath, options = {}) {
  * @param {string} epubPath - 原始 EPUB 路径
  * @param {string} stdout - CLI 标准输出
  * @param {boolean} isMerged - 是否合并模式
- * @returns {string} 输出目录路径
+ * @returns {string} 输出目录路径（基本名称）
  */
 function parseOutputDir(epubPath, stdout, isMerged) {
-    // 尝试从输出中提取路径
-    const successMatch = stdout.match(/output[:\s]+(.+?)(?:\n|$)/i);
+    // 当合并时，CLI 输出类似：Output file: /path/to/dirname/filename.md
+    // 我们需要返回 dirname
+    const mergeMatch = stdout.match(/Output file[:\\s]+(.+?)(?:\n|$)/i);
+    if (mergeMatch) {
+        const fullPath = mergeMatch[1].trim();
+        // 从完整路径获取目录名
+        const dirPath = path.dirname(fullPath);
+        return path.basename(dirPath);
+    }
+
+    // 非合并模式，输出类似：output: /path/to/dirname
+    const successMatch = stdout.match(/output[:\\s]+(.+?)(?:\n|$)/i);
     if (successMatch) {
         return path.basename(successMatch[1].trim());
     }
 
-    const mergeMatch = stdout.match(/Output file[:\s]+(.+?)(?:\n|$)/i);
-    if (mergeMatch) {
-        const fullPath = mergeMatch[1].trim();
-        return path.basename(path.dirname(fullPath));
-    }
-
-    // 如果无法解析，使用默认值
+    // 如果无法解析，使用 EPUB 文件名（去掉 .epub 扩展名）
     const baseName = path.basename(epubPath, '.epub');
     return baseName;
 }

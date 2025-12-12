@@ -11,7 +11,10 @@
   - 章节合并
   - 中英文自动校正
   - 图片本地化
-- 📦 **ZIP 下载**: 完整文件夹结构（MD + images）
+  - 自动填充文件名
+- 🖼️ **封面支持**: 自动提取并包含封面图片，Obsidian 完美显示
+- 📦 **ZIP 下载**: 完整文件夹结构（MD + images + cover）
+- 🌏 **中文友好**: 完美支持中文文件名，无乱码
 - 🗑️ **自动清理**: 下载后自动删除临时文件
 - 📱 **响应式设计**: 适配各种屏幕尺寸
 
@@ -41,10 +44,10 @@ npm install
 ### 使用
 
 1. 访问 http://localhost:3737
-2. 上传 EPUB 文件
+2. 上传 EPUB 文件（自动填充文件名）
 3. 配置转换选项
 4. 下载 ZIP 压缩包
-5. 解压后在 Obsidian 中打开
+5. 解压后在 Obsidian 中打开，封面自动显示
 
 ## 📚 文档
 
@@ -135,7 +138,26 @@ MIT License
 
 如遇到问题，请查看：
 - [故障排除文档](故障排除.md)
-- [GitHub Issues](https://github.com/yourusername/epub-md-converter/issues)
+- [GitHub Issues](https://github.com/mr-shaper/epub-md-converter/issues)
+
+## 📝 更新日志
+
+### v1.1.0 (2025-12-11)
+
+**新功能**:
+- ✨ 自动提取并包含封面图片（cover.jpg）
+- 🎯 文件名自动填充（从 EPUB 文件名提取）
+- 🌏 完美支持中文文件名，无乱码
+
+**修复**:
+- 🐛 修复 ZIP 下载 URL 错误
+- 🐛 修复文件名编码问题
+- 🐛 修复封面图片缺失问题
+
+**改进**:
+- 🎨 更新品牌标识（EPUB-MD Converter）
+- 📦 优化 ZIP 创建逻辑
+- 🔧 改进错误处理
 
 ---
 
