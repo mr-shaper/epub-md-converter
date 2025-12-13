@@ -1,7 +1,7 @@
 {
-    "name": "epub2md-gui",
-    "version": "1.0.0",
-    "description": "GUI for epub2MD",
+    "name": "epub-md-bidirectional-gui",
+    "version": "1.2.0",
+    "description": "Bidirectional converter between EPUB and Markdown (GUI)",
     "type": "module",
     "main": "server.js",
     "scripts": {

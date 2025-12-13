@@ -1,4 +1,4 @@
-# epub-md-converter
+# EPUB-Markdown Bidirectional Converter
 
 [中文说明](README_CN.md)
 

@@ -1,4 +1,4 @@
-# epub-md-converter
+# EPUB-Markdown 双向转换器 (Bidirectional Converter)
 
 一个现代化的 EPUB 到 Markdown 转换工具，带有漂亮的 Web GUI 界面。
 
