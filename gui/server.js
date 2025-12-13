@@ -4,6 +4,9 @@ import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import archiver from 'archiver';
+import AdmZip from 'adm-zip';
+import Epub from 'epub-gen';
+import { marked } from 'marked';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,18 +20,21 @@ const storage = multer.diskStorage({
         cb(null, path.join(__dirname, 'uploads'));
     },
     filename: (req, file, cb) => {
+        // 使用安全的文件名（时间戳+随机数+扩展名），避免中文文件名导致的 ADM-ZIP 或文件系统问题
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
+        const ext = path.extname(file.originalname);
+        cb(null, uniqueSuffix + ext);
     }
 });
 
 const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
-        if (path.extname(file.originalname).toLowerCase() === '.epub') {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (ext === '.epub' || ext === '.zip') {
             cb(null, true);
         } else {
-            cb(new Error('只支持 .epub 文件'));
+            cb(new Error('只支持 .epub 或 .zip 文件'));
         }
     }
 });
@@ -65,7 +71,7 @@ async function cleanupOldFiles() {
 setInterval(cleanupOldFiles, 30 * 60 * 1000);
 
 // 文件上传接口
-app.post('/upload', upload.single('epub'), async (req, res) => {
+app.post('/upload', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: '请上传 EPUB 文件' });
@@ -144,6 +150,177 @@ app.post('/convert', async (req, res) => {
             error: '转换失败: ' + error.message,
             details: error.stack
         });
+    }
+});
+
+// Markdown 转 EPUB 接口
+app.post('/convert-to-epub', async (req, res) => {
+    try {
+        const { filename, options } = req.body;
+        if (!filename) return res.status(400).json({ error: '缺少文件名' });
+
+        const zipPath = path.join(__dirname, 'uploads', filename);
+        // 解压目录名加上时间戳防止冲突
+        const extractDir = path.join(__dirname, 'uploads', path.basename(filename, '.zip') + '-' + Date.now());
+
+        console.log('开始反向转换:', filename);
+        console.log('ZIP 文件路径:', zipPath);
+
+        // Debug: 检查文件是否存在
+        try {
+            await fs.access(zipPath);
+            console.log('文件存在检查: 通过');
+        } catch (e) {
+            console.error('文件存在检查: 失败 - 文件不存在!');
+            // 列出 uploads 目录下的文件帮助调试
+            const uploadsFiles = await fs.readdir(path.join(__dirname, 'uploads'));
+            console.log('Uploads 目录内容:', uploadsFiles);
+            return res.status(404).json({ error: '找不到上传的文件 (ADM-ZIP Pre-check)' });
+        }
+
+        // 1. 解压 ZIP
+        const zip = new AdmZip(zipPath);
+        zip.extractAllTo(extractDir, true);
+
+        // 2. 寻找 MD 文件 (支持嵌套目录)
+        async function findMdFile(dir) {
+            const items = await fs.readdir(dir);
+            for (const item of items) {
+                // 忽略隐藏文件 (如 ._xxx.md) 和 __MACOSX 目录
+                if (item.startsWith('.') || item === '__MACOSX') continue;
+
+                const fullPath = path.join(dir, item);
+                const stat = await fs.stat(fullPath);
+                if (stat.isDirectory()) {
+                    const found = await findMdFile(fullPath);
+                    if (found) return found;
+                } else if (item.toLowerCase().endsWith('.md')) {
+                    return fullPath;
+                }
+            }
+            return null;
+        }
+
+        const mdFilePath = await findMdFile(extractDir);
+        if (!mdFilePath) throw new Error('ZIP 中未找到 .md 文件');
+
+        // 获取 MD 文件所在的实际目录
+        const contentDir = path.dirname(mdFilePath);
+        const mdFile = path.basename(mdFilePath);
+
+        console.log('找到 MD 文件:', mdFilePath);
+        console.log('内容目录:', contentDir);
+
+        // 3. 读取 MD 内容并解析
+        const mdContent = await fs.readFile(mdFilePath, 'utf-8');
+
+        // 配置 marked renderer 处理图片路径
+        const renderer = new marked.Renderer();
+        renderer.image = function ({ href, title, text }) {
+            let imagePath = href;
+            // 移除可能的前缀
+            imagePath = imagePath.replace(/^(\.\/|\/)/, '');
+
+            // 检查图片是否存在 (基于 contentDir)
+            const absolutePath = path.join(contentDir, imagePath);
+            // epub-gen 需要绝对路径
+            return `<img src="${absolutePath}" alt="${text || ''}" />`;
+        };
+
+        const htmlContent = marked(mdContent, { renderer });
+
+        // 4. 生成 EPUB
+        const outputFilename = mdFile.replace(/\.md$/i, '.epub');
+        // 确保使用绝对路径
+        const outputDir = path.join(__dirname, 'outputs');
+        await fs.mkdir(outputDir, { recursive: true });
+
+        const outputPath = path.join(outputDir, outputFilename);
+
+        console.log('正在生成 EPUB:', outputPath);
+
+        // 尝试查找封面 (基于 contentDir)
+        let coverPath = undefined;
+        const imagesDir = path.join(contentDir, 'images');
+        try {
+            const imageFiles = await fs.readdir(imagesDir);
+            const foundCover = imageFiles.find(f => f.toLowerCase().startsWith('cover.'));
+            if (foundCover) {
+                coverPath = path.join(imagesDir, foundCover);
+                console.log('找到封面:', coverPath);
+            }
+        } catch (e) {
+            console.log('未找到 images 目录或封面:', e.message);
+        }
+
+        const epubOptions = {
+            title: mdFile.replace(/\.md$/i, ''),
+            author: "EPUB-MD Converter",
+            content: [
+                {
+                    title: "Content",
+                    data: htmlContent
+                }
+            ],
+            cover: coverPath,
+            verbose: true
+        };
+
+        await new Epub(epubOptions, outputPath).promise;
+        console.log('EPUB 生成成功');
+
+        res.json({
+            success: true,
+            message: 'EPUB 生成完成',
+            downloadUrl: `/download-epub/${encodeURIComponent(outputFilename)}`
+        });
+
+    } catch (error) {
+        console.error('反向转换错误:', error);
+        res.status(500).json({ error: '转换失败: ' + error.message });
+    }
+});
+
+// 单独的 EPUB 下载接口
+// 单独的 EPUB 下载接口
+app.get('/download-epub/:filename', async (req, res) => {
+    try {
+        const { filename } = req.params;
+        const decodedFilename = decodeURIComponent(filename); // 手动尝试解码，尽管 express 通常会自动处理
+        const filePath = path.join(__dirname, 'outputs', filename); // 这里直接用 filename，假设 express 已经解码
+        const filePathDecoded = path.join(__dirname, 'outputs', decodedFilename);
+
+        console.log('下载请求:', filename);
+        console.log('尝试路径 (直接):', filePath);
+
+        // 安全检查
+        if (!path.normalize(filePath).startsWith(path.join(__dirname, 'outputs'))) {
+            return res.status(403).send('Forbidden');
+        }
+
+        try {
+            await fs.access(filePath);
+            res.download(filePath);
+        } catch (e1) {
+            console.log('直接路径未找到，尝试手动解码路径:', filePathDecoded);
+            try {
+                await fs.access(filePathDecoded);
+                res.download(filePathDecoded);
+            } catch (e2) {
+                console.error('文件下载失败 - 文件不存在');
+                console.error('尝试路径 1:', filePath);
+                console.error('尝试路径 2:', filePathDecoded);
+
+                // 列出 outputs 目录
+                const outputFiles = await fs.readdir(path.join(__dirname, 'outputs'));
+                console.log('Outputs 目录内容:', outputFiles);
+
+                res.status(404).send('File not found');
+            }
+        }
+    } catch (e) {
+        console.error('下载接口未知错误:', e);
+        res.status(500).send('Server Error');
     }
 });
 
